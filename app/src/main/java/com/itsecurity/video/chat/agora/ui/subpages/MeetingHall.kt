@@ -1,7 +1,10 @@
 package com.itsecurity.video.chat.agora.ui.subpages
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.Toast
@@ -67,7 +70,7 @@ fun MeetingHall(back: () -> Unit = {}) {
     val keyboard = LocalSoftwareKeyboardController.current
     var isJoined by rememberSaveable { mutableStateOf(false) }
     var channelName by rememberSaveable { mutableStateOf("test-channel-please-change-it") }
-    var token by rememberSaveable { mutableStateOf("007eJxTYChd+3yN7tLQjSx2omGd3+QvTBBcL2zvWxqQ+XxT498PibcVGJLNjE2NDVMTk1OMTE1STZKTzNMMTFIMjA0sjJJSTNIMYht40hsCGRnWVjCzMjJAIIgvy1CSWlyim5yRmJeXmqNbkJOaWJwK5qan6maWMDAAAOGzKHI=") }
+    var token by rememberSaveable { mutableStateOf("007eJxTYGCpe3E/nCM9U5mFPW2W4I7Hbq4P9Pga507MPnBEdEPpjfsKDMlmxqbGhqmJySlGpiapJslJ5mkGJikGxgYWRkkpJmkGL1j40hsCGRl2GB5kZGSAQBBflqEktbhENzkjMS8vNUe3ICc1sTgVzE1P1c0sYWAAAFFYJ4E=") }
     var localUid by rememberSaveable { mutableIntStateOf(0) }
     var videoIdList by rememberSaveable { mutableStateOf(listOf<Int>()) }
     val statsMap = remember { mutableStateMapOf(0 to VideoStatsInfo()) }
@@ -108,8 +111,12 @@ fun MeetingHall(back: () -> Unit = {}) {
         })
         val startCode = recorder!!.startRecording(config)
         Log.i("MM", "Start recording = $startCode")
-        if(startCode == 0) {
-            Toast.makeText(LocalContext.current, "Recording started on path: ${config.storagePath}", Toast.LENGTH_LONG).show()
+        if (startCode == 0) {
+            Toast.makeText(
+                LocalContext.current,
+                "Recording started on path: ${config.storagePath}",
+                Toast.LENGTH_LONG
+            ).show()
         } else {
             Toast.makeText(LocalContext.current, "Recording failed!", Toast.LENGTH_SHORT).show()
         }
@@ -117,7 +124,7 @@ fun MeetingHall(back: () -> Unit = {}) {
         Log.i("MM", "Stop recording.")
         if (recorder != null) {
             Log.i("MM", "Stop recording2.")
-            if(recorder!!.stopRecording() == 0) {
+            if (recorder!!.stopRecording() == 0) {
                 Toast.makeText(LocalContext.current, "Recording saved!", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(LocalContext.current, "Recording failed!", Toast.LENGTH_SHORT).show()
@@ -201,6 +208,15 @@ fun MeetingHall(back: () -> Unit = {}) {
                         statsMap[uid] = it
                     }
                 }
+
+                override fun onError(err: Int) {
+                    super.onError(err)
+                    Toast.makeText(
+                        context,
+                        "Join failed, error = $err, check temporary token.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }).apply {
             setVideoEncoderConfiguration(
@@ -238,8 +254,14 @@ fun MeetingHall(back: () -> Unit = {}) {
                 recorder = rtcEngine.createMediaRecorder(recorderInfo)
                 Log.i("MM", "Recorder created.")
             } else {
+                var grantedResult = StringBuilder()
+                for (item in grantedMap) {
+                    grantedResult.append(item.key).append('=').append(item.value).append("\n")
+                    Toast.makeText(context, "${item.value}=${item.key}", Toast.LENGTH_SHORT).show()
+                }
+                Log.i("MM", grantedResult.toString())
                 // Permission is denied
-                Toast.makeText(context, "Permission Denied", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -265,6 +287,8 @@ fun MeetingHall(back: () -> Unit = {}) {
         setupVideo = { view, id, _ ->
             val canvas = VideoCanvas(view, Constants.RENDER_MODE_HIDDEN, id)
             if (id == localUid) {
+//                val testInput:String = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).absolutePath + "/12514125_2160_3840_30fps.mp4"
+//                rtcEngine.setExternalVideoSource(true, false, Constants.ExternalVideoSourceType.ENCODED_VIDEO_FRAME)
                 rtcEngine.setupLocalVideo(canvas)
             } else {
                 rtcEngine.setupRemoteVideo(canvas)
@@ -290,22 +314,31 @@ fun MeetingHall(back: () -> Unit = {}) {
                 UiStore.stopRecording()
             } else {
                 keyboard?.hide()
-                permissionLauncher.launch(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        arrayOf(
-                            android.Manifest.permission.RECORD_AUDIO,
-                            android.Manifest.permission.CAMERA,
-                            android.Manifest.permission.MANAGE_EXTERNAL_STORAGE
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (Environment.isExternalStorageManager()) {
+                        // Permission granted
+                        permissionLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.RECORD_AUDIO,
+                                android.Manifest.permission.CAMERA,
+                            )
                         )
                     } else {
+                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        val uri = Uri.fromParts("package", context.packageName, null)
+                        intent.setData(uri)
+                        context.startActivity(intent)
+                    }
+                } else {
+                    permissionLauncher.launch(
                         arrayOf(
                             android.Manifest.permission.RECORD_AUDIO,
                             android.Manifest.permission.CAMERA,
                             android.Manifest.permission.READ_EXTERNAL_STORAGE,
                             android.Manifest.permission.WRITE_EXTERNAL_STORAGE
                         )
-                    }
-                )
+                    )
+                }
             }
         }
     )

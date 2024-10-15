@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.itsecurity.video.chat.agora"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.itsecurity.video.chat.agora"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
